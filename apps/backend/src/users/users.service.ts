@@ -32,9 +32,11 @@ export class UsersService {
   /** Perfil completo del usuario autenticado + rating. Crea el profile si falta. */
   async getMe(userId: string) {
     await this.ensureProfile(userId);
+    const profile = await this.prisma.profile.findUnique({ where: { id: userId } });
     const player = await this.findMyPlayer(userId);
     return {
       userId,
+      role: profile?.role ?? 'jugador',
       onboarded: !!player,
       player: player ? this.toPlayerDto(player) : null,
     };

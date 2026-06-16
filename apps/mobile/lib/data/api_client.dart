@@ -5,6 +5,7 @@ import '../core/network/dio_client.dart';
 import '../domain/player.dart';
 import '../domain/match.dart';
 import '../domain/ranking.dart';
+import '../domain/notification.dart';
 
 /// Cliente del API de negocio (NestJS §11.1).
 class ApiClient {
@@ -126,6 +127,23 @@ class ApiClient {
     final res = await _dio.get<List<dynamic>>('/players/$playerId/rating/history');
     return (res.data ?? []).map((e) => RatingPoint.fromJson(e as Map<String, dynamic>)).toList();
   }
+
+  // ── Notificaciones (§14) ──────────────────────────────────────
+  Future<NotificationsPage> getNotifications() async {
+    final res = await _dio.get<Map<String, dynamic>>('/me/notifications');
+    return NotificationsPage.fromJson(res.data!);
+  }
+
+  Future<void> markNotificationRead(String id) => _dio.post('/notifications/$id/read');
+
+  // ── Moderación admin (§11.6) ──────────────────────────────────
+  Future<List<Map<String, dynamic>>> getDisputes() async {
+    final res = await _dio.get<List<dynamic>>('/admin/disputes');
+    return (res.data ?? []).cast<Map<String, dynamic>>();
+  }
+
+  Future<void> resolveDispute(String matchId, String resolution) =>
+      _dio.post('/admin/disputes/$matchId/resolve', data: {'resolution': resolution});
 }
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient(ref.watch(dioProvider)));

@@ -60,13 +60,22 @@ class Player {
 
 class Me {
   final String userId;
+  final String role;
   final bool onboarded;
   final Player? player;
 
-  const Me({required this.userId, required this.onboarded, this.player});
+  const Me({
+    required this.userId,
+    required this.role,
+    required this.onboarded,
+    this.player,
+  });
+
+  bool get isAdmin => role == 'administrador';
 
   factory Me.fromJson(Map<String, dynamic> j) => Me(
         userId: j['userId'] as String,
+        role: (j['role'] as String?) ?? 'jugador',
         onboarded: j['onboarded'] as bool,
         player: j['player'] == null ? null : Player.fromJson(j['player'] as Map<String, dynamic>),
       );

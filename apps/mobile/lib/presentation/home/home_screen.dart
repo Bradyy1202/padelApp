@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../domain/player.dart';
 import '../../state/auth_controller.dart';
 import '../../state/me_controller.dart';
+import '../../state/notifications_controller.dart';
 
 /// Home: hero de rating del jugador + accesos (Sprint 1, rediseñado con UI/UX Pro Max).
 class HomeScreen extends ConsumerWidget {
@@ -19,6 +20,7 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Pádel CR'),
         actions: [
+          _notificationBell(context, ref),
           IconButton(
             tooltip: 'Mi perfil',
             icon: const Icon(Icons.person_outline),
@@ -66,9 +68,32 @@ class HomeScreen extends ConsumerWidget {
                 subtitle: 'Edita tus datos, invitados y evolución',
                 onTap: () => context.push('/profile'),
               ),
+              if (data?.isAdmin ?? false) ...[
+                const SizedBox(height: 12),
+                _actionTile(
+                  context,
+                  icon: Icons.gavel,
+                  title: 'Panel admin: disputas',
+                  subtitle: 'Resuelve resultados disputados',
+                  onTap: () => context.push('/admin/disputes'),
+                ),
+              ],
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _notificationBell(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(notificationsProvider).valueOrNull?.unread ?? 0;
+    return IconButton(
+      tooltip: 'Notificaciones',
+      onPressed: () => context.push('/notifications'),
+      icon: Badge(
+        isLabelVisible: unread > 0,
+        label: Text('$unread'),
+        child: const Icon(Icons.notifications_outlined),
       ),
     );
   }

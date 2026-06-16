@@ -9,6 +9,8 @@ import '../../presentation/matches/match_detail_screen.dart';
 import '../../presentation/onboarding/onboarding_screen.dart';
 import '../../presentation/profile/profile_screen.dart';
 import '../../presentation/rankings/rankings_screen.dart';
+import '../../presentation/notifications/notifications_screen.dart';
+import '../../presentation/admin/admin_disputes_screen.dart';
 import '../../state/auth_controller.dart';
 import '../../state/me_controller.dart';
 
@@ -29,6 +31,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/profile', name: 'profile', builder: (c, s) => const ProfileScreen()),
       GoRoute(path: '/matches', name: 'matches', builder: (c, s) => const MatchesListScreen()),
       GoRoute(path: '/rankings', name: 'rankings', builder: (c, s) => const RankingsScreen()),
+      GoRoute(
+        path: '/notifications',
+        name: 'notifications',
+        builder: (c, s) => const NotificationsScreen(),
+      ),
+      GoRoute(path: '/admin/disputes', name: 'admin-disputes', builder: (c, s) => const AdminDisputesScreen()),
       GoRoute(
         path: '/matches/:id',
         name: 'match',

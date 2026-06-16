@@ -17,6 +17,9 @@ import { UsersModule } from './users/users.module';
 import { MatchesModule } from './matches/matches.module';
 import { RatingModule } from './rating/rating.module';
 import { RankingsModule } from './rankings/rankings.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { ModerationModule } from './moderation/moderation.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -57,10 +60,13 @@ import { RankingsModule } from './rankings/rankings.module';
     SupabaseModule,
     AuthModule,
     CommonModule,
+    AnalyticsModule,
+    NotificationsModule,
     RatingModule,
     UsersModule,
     MatchesModule,
     RankingsModule,
+    ModerationModule,
     HealthModule,
   ],
 })

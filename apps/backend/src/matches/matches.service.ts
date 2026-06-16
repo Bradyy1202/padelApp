@@ -15,6 +15,8 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service';
 import { RatingQueue } from '../rating/rating.queue';
+import { NotificationsService } from '../notifications/notifications.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { QrService } from './qr.service';
 import { ScoreValidatorService } from './score-validator.service';
 import { CreateMatchDto } from './dto/create-match.dto';
@@ -39,6 +41,8 @@ export class MatchesService {
     private readonly qr: QrService,
     private readonly scores: ScoreValidatorService,
     private readonly ratingQueue: RatingQueue,
+    private readonly notifications: NotificationsService,
+    private readonly analytics: AnalyticsService,
   ) {}
 
   /** Crea un partido en DRAFT y añade al creador al lado 1 (PRD §6.3). */
@@ -173,6 +177,17 @@ export class MatchesService {
       });
     });
 
+    this.analytics.capture(userId, 'match_result_reported', { bestOf: match.bestOf });
+
+    // Notifica a los demás jugadores que hay un resultado por confirmar (§14).
+    const toNotify = match.players.map((p) => p.playerId).filter((id) => id !== requesterId);
+    await this.notifications.notifyPlayers(
+      toNotify,
+      'MATCH_RESULT_PENDING',
+      { matchId, winnerSide: result.winnerSide },
+      `match-${matchId}-pending`,
+    );
+
     return this.getMatch(matchId);
   }
 
@@ -235,6 +250,12 @@ export class MatchesService {
       }),
       this.prisma.match.update({ where: { id: matchId }, data: { status: MatchStatus.DISPUTED } }),
     ]);
+    await this.notifications.notifyPlayers(
+      match.players.map((p) => p.playerId),
+      'MATCH_DISPUTED',
+      { matchId },
+      `match-${matchId}-disputed`,
+    );
     return this.getMatch(matchId);
   }
 
@@ -267,6 +288,14 @@ export class MatchesService {
       data: { status: MatchStatus.CONFIRMED },
     });
     await this.ratingQueue.enqueueMatch(matchId);
+    this.analytics.capture('system', 'match_confirmed', { matchId });
+    const players = await this.prisma.matchPlayer.findMany({ where: { matchId } });
+    await this.notifications.notifyPlayers(
+      players.map((p) => p.playerId),
+      'MATCH_CONFIRMED',
+      { matchId },
+      `match-${matchId}-confirmed`,
+    );
   }
 
   private async loadPendingWithRealPlayers(matchId: string) {
