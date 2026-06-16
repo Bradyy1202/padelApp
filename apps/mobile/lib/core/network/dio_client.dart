@@ -2,13 +2,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/env.dart';
-import '../storage/secure_storage.dart';
+import '../../state/auth_controller.dart';
 
 /// Cliente HTTP (Dio) con interceptores (PRD §9.3):
-/// - Adjunta el Bearer token de Supabase a cada petición.
+/// - Adjunta el Bearer token de Supabase, o el header de dev si la sesión es de desarrollo.
 /// - Maneja 401 (en sprints posteriores: refresh de token y reintento).
 class DioClient {
-  DioClient(this._storage) {
+  DioClient(this._ref) {
     _dio = Dio(
       BaseOptions(
         baseUrl: Env.apiBaseUrl,
@@ -20,29 +20,26 @@ class DioClient {
 
     _dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) async {
-          final token = await _storage.getAccessToken();
-          if (token != null && token.isNotEmpty) {
-            options.headers['Authorization'] = 'Bearer $token';
+        onRequest: (options, handler) {
+          final session = _ref.read(authControllerProvider);
+          if (session != null) {
+            if (session.accessToken != null) {
+              options.headers['Authorization'] = 'Bearer ${session.accessToken}';
+            } else if (session.isDev) {
+              options.headers['x-dev-user-id'] = session.userId;
+            }
           }
           handler.next(options);
-        },
-        onError: (error, handler) async {
-          // TODO(sprint1): en 401, intentar refresh de sesión Supabase y reintentar.
-          handler.next(error);
         },
       ),
     );
   }
 
+  final Ref _ref;
   late final Dio _dio;
-  final SecureStorage _storage;
 
   Dio get dio => _dio;
 }
 
-final dioClientProvider = Provider<DioClient>((ref) {
-  return DioClient(ref.watch(secureStorageProvider));
-});
-
+final dioClientProvider = Provider<DioClient>((ref) => DioClient(ref));
 final dioProvider = Provider<Dio>((ref) => ref.watch(dioClientProvider).dio);

@@ -5,11 +5,13 @@ import {
   PrismaHealthIndicator,
 } from '@nestjs/terminus';
 import { PrismaService } from '../prisma/prisma.service';
+import { Public } from '../auth/auth.decorators';
 
 /**
  * GET /health — verifica que el proceso está vivo y que Postgres responde.
  * Usado por CI/CD y monitoreo (PRD §18).
  */
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(

@@ -1,44 +1,96 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../l10n/app_localizations.dart';
-import '../../state/health_provider.dart';
+import '../../state/auth_controller.dart';
+import '../../state/me_controller.dart';
 
-/// Pantalla placeholder de Sprint 0: confirma que la app arranca y que puede
-/// hablar con el backend (GET /health). Se reemplaza por el Home real en Sprint 1.
+/// Home: resumen del perfil y rating del jugador (Sprint 1).
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final health = ref.watch(healthProvider);
+    final me = ref.watch(meProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.appTitle)),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(l10n.homeWelcome, style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 24),
-            Text('${l10n.backendStatus}:'),
-            const SizedBox(height: 8),
-            health.when(
-              data: (status) => Text(
-                status,
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+      appBar: AppBar(
+        title: const Text('Pádel CR'),
+        actions: [
+          IconButton(
+            tooltip: 'Mi perfil',
+            icon: const Icon(Icons.person),
+            onPressed: () => context.push('/profile'),
+          ),
+          IconButton(
+            tooltip: 'Cerrar sesión',
+            icon: const Icon(Icons.logout),
+            onPressed: () => ref.read(authControllerProvider.notifier).signOut(),
+          ),
+        ],
+      ),
+      body: me.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+        data: (data) {
+          final player = data?.player;
+          if (player == null) {
+            return const Center(child: Text('Completa tu perfil'));
+          }
+          return ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundImage:
+                        player.photoUrl != null ? NetworkImage(player.photoUrl!) : null,
+                    child: player.photoUrl == null ? const Icon(Icons.person, size: 32) : null,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(player.fullName,
+                            style: Theme.of(context).textTheme.headlineSmall),
+                        if (player.city != null) Text(player.city!),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              loading: () => Text(l10n.checking),
-              error: (e, _) => Text('error: $e', style: const TextStyle(color: Colors.red)),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () => ref.invalidate(healthProvider),
-              child: const Icon(Icons.refresh),
-            ),
-          ],
-        ),
+              const SizedBox(height: 24),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Rating', style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      if (player.rating == null)
+                        Text(
+                          'Aún sin rating. Juega tus primeros partidos para calcularlo.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        )
+                      else ...[
+                        Text(player.rating!.rating.toStringAsFixed(2),
+                            style: Theme.of(context).textTheme.displaySmall),
+                        Text('Confianza: ${player.rating!.confidence}% · ${player.rating!.state}'),
+                      ],
+                      if (player.estLevel != null) ...[
+                        const SizedBox(height: 8),
+                        Text('Nivel estimado: ${player.estLevel!.toStringAsFixed(1)}'),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

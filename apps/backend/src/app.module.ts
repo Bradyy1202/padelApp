@@ -9,6 +9,9 @@ import { validateEnv } from './config/env.validation';
 import { CommonModule } from './common/common.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './auth/auth.module';
+import { SupabaseModule } from './supabase/supabase.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -35,7 +38,10 @@ import { HealthModule } from './health/health.module';
     // Rate limiting base (PRD §16). Se afina por endpoint en sprints posteriores.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
+    SupabaseModule,
+    AuthModule,
     CommonModule,
+    UsersModule,
     HealthModule,
   ],
 })
