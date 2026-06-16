@@ -5,6 +5,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../data/api_client.dart';
 import '../../domain/match.dart';
 import '../../state/matches_controller.dart';
+import '../../state/me_controller.dart';
 
 class MatchDetailScreen extends ConsumerWidget {
   const MatchDetailScreen({super.key, required this.matchId});
@@ -28,6 +29,7 @@ class MatchDetailScreen extends ConsumerWidget {
             const SizedBox(height: 16),
             if (m.status == 'DRAFT' || m.status == 'READY') _qrSection(context, ref, m),
             if (m.sets.isNotEmpty) _setsCard(context, m),
+            if (m.status == 'PENDING_CONFIRMATION') _confirmCard(context, ref, m),
             if (m.status == 'READY')
               Padding(
                 padding: const EdgeInsets.only(top: 16),
@@ -122,6 +124,83 @@ class MatchDetailScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Widget _confirmCard(BuildContext context, WidgetRef ref, MatchDetail m) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.how_to_vote, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text('Confirma el resultado', style: theme.textTheme.titleMedium),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Cuando la mayoría de jugadores reales confirme, el rating se actualizará. '
+                'Si algo no cuadra, puedes disputarlo.',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.check),
+                      label: const Text('Confirmar'),
+                      onPressed: () => _confirm(context, ref, m, dispute: false),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.flag_outlined),
+                      label: const Text('Disputar'),
+                      onPressed: () => _confirm(context, ref, m, dispute: true),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirm(
+    BuildContext context,
+    WidgetRef ref,
+    MatchDetail m, {
+    required bool dispute,
+  }) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final updated = dispute ? await api.disputeMatch(m.id) : await api.confirmMatch(m.id);
+      ref.invalidate(matchProvider(m.id));
+      ref.invalidate(myMatchesProvider);
+      ref.invalidate(meProvider); // refresca el rating del home si cambió
+      if (context.mounted) {
+        final msg = updated.status == 'CONFIRMED'
+            ? 'Resultado confirmado — rating actualizándose'
+            : updated.status == 'DISPUTED'
+                ? 'Resultado disputado'
+                : 'Tu confirmación quedó registrada';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
   }
 
   Future<void> _addGuestDialog(BuildContext context, WidgetRef ref, MatchDetail m, int side) async {
