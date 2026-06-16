@@ -6,6 +6,7 @@ import '../../data/api_client.dart';
 import '../../domain/player.dart';
 import '../../state/auth_controller.dart';
 import '../../state/me_controller.dart';
+import 'rating_evolution_card.dart';
 
 /// Perfil: editar datos, crear invitado, reclamar perfiles sugeridos y borrar cuenta.
 class ProfileScreen extends ConsumerWidget {
@@ -31,6 +32,9 @@ class ProfileScreen extends ConsumerWidget {
                     .where((e) => e != null)
                     .join(' · ')),
               ),
+              const SizedBox(height: 8),
+              RatingEvolutionCard(playerId: player.id),
+              const SizedBox(height: 8),
               const Divider(),
               ListTile(
                 leading: const Icon(Icons.person_add),

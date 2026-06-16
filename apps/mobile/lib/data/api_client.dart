@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/network/dio_client.dart';
 import '../domain/player.dart';
 import '../domain/match.dart';
+import '../domain/ranking.dart';
 
 /// Cliente del API de negocio (NestJS §11.1).
 class ApiClient {
@@ -104,6 +105,26 @@ class ApiClient {
     final res = await _dio.get<Map<String, dynamic>>('/me/matches');
     final data = (res.data!['data'] as List<dynamic>);
     return data.map((e) => MatchDetail.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  // ── Rankings / rating (§11.3) ─────────────────────────────────
+  Future<List<RankingEntry>> getRankings({
+    String scope = 'global',
+    String? value,
+    bool includeProvisional = true,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>('/rankings', queryParameters: {
+      'scope': scope,
+      'value': ?value,
+      'includeProvisional': includeProvisional,
+    });
+    final data = (res.data!['data'] as List<dynamic>);
+    return data.map((e) => RankingEntry.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<List<RatingPoint>> getRatingHistory(String playerId) async {
+    final res = await _dio.get<List<dynamic>>('/players/$playerId/rating/history');
+    return (res.data ?? []).map((e) => RatingPoint.fromJson(e as Map<String, dynamic>)).toList();
   }
 }
 

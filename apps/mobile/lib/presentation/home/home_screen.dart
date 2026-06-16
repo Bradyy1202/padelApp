@@ -53,9 +53,17 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               _actionTile(
                 context,
+                icon: Icons.leaderboard,
+                title: 'Rankings',
+                subtitle: 'Compárate por ciudad, club o género',
+                onTap: () => context.push('/rankings'),
+              ),
+              const SizedBox(height: 12),
+              _actionTile(
+                context,
                 icon: Icons.person_outline,
                 title: 'Mi perfil',
-                subtitle: 'Edita tus datos e invitados',
+                subtitle: 'Edita tus datos, invitados y evolución',
                 onTap: () => context.push('/profile'),
               ),
             ],

@@ -8,6 +8,7 @@ import '../../presentation/matches/matches_list_screen.dart';
 import '../../presentation/matches/match_detail_screen.dart';
 import '../../presentation/onboarding/onboarding_screen.dart';
 import '../../presentation/profile/profile_screen.dart';
+import '../../presentation/rankings/rankings_screen.dart';
 import '../../state/auth_controller.dart';
 import '../../state/me_controller.dart';
 
@@ -27,6 +28,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/onboarding', name: 'onboarding', builder: (c, s) => const OnboardingScreen()),
       GoRoute(path: '/profile', name: 'profile', builder: (c, s) => const ProfileScreen()),
       GoRoute(path: '/matches', name: 'matches', builder: (c, s) => const MatchesListScreen()),
+      GoRoute(path: '/rankings', name: 'rankings', builder: (c, s) => const RankingsScreen()),
       GoRoute(
         path: '/matches/:id',
         name: 'match',

@@ -16,6 +16,7 @@ import { SupabaseModule } from './supabase/supabase.module';
 import { UsersModule } from './users/users.module';
 import { MatchesModule } from './matches/matches.module';
 import { RatingModule } from './rating/rating.module';
+import { RankingsModule } from './rankings/rankings.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { RatingModule } from './rating/rating.module';
     RatingModule,
     UsersModule,
     MatchesModule,
+    RankingsModule,
     HealthModule,
   ],
 })
