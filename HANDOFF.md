@@ -13,8 +13,8 @@ MVP por sprints (roadmap PRD §19). **Completados 0–3** (núcleo de rating con
 | 1 — Identidad y perfil (auth, onboarding, invitados, merge/claim, borrado) | ✅ |
 | 2 — Partidos + QR (crear, QR firmado, unirse, marcador validado) | ✅ |
 | 3 — Confirmación + Rating (mayoría/admin/24h, Glicko-2 dobles+MOV, BullMQ, recálculo en merge) | ✅ |
-| 4 — Rankings + perfil estadístico | ⬜ **SIGUIENTE** |
-| 5 — Notificaciones + Moderación | ⬜ |
+| 4 — Rankings + perfil estadístico (mv_rankings+scopes, /rankings, rating/history, app rankings + gráfico evolución) | ✅ |
+| 5 — Notificaciones + Moderación | ⬜ **SIGUIENTE** |
 | 6 — Pozos | ⬜ |
 | 7 — Torneos | ⬜ |
 | 8 — Hardening + Lanzamiento | ⬜ |
@@ -79,28 +79,28 @@ cd apps/mobile;  C:\Users\zumba\flutter\bin\flutter.bat test
   (worker BullMQ) → `RatingService.applyMatch` escribe `rating_current` + `rating_history`.
   ⚠️ El `jobId` de BullMQ NO admite `:` (usar `match-<id>`).
 
-## 7. SIGUIENTE: Sprint 4 — Rankings + perfil estadístico
+## 7. SIGUIENTE: Sprint 5 — Notificaciones + Moderación
 
-Plan concreto (ya hay base en la BD: vista materializada `mv_rankings` creada en migración
-`20260615000100_indexes_view`).
-
-**Backend (nuevo módulo `rankings/`):**
-1. `GET /players/:id/rating` y `GET /players/:id/rating/history` (leer `rating_current` /
-   `rating_history`). *(Hoy el rating se ve embebido en `GET /me`.)*
-2. `GET /rankings?scope=global|country|city|club|gender&value=…&page&limit` leyendo de
-   `mv_rankings` (solo `ESTABLISHED`).
-3. Job de refresco: `REFRESH MATERIALIZED VIEW CONCURRENTLY mv_rankings` cada 5–15 min
-   (usar `@nestjs/schedule`, ya instalado; ejecutar SQL crudo con Prisma `$executeRaw`).
-4. Tests del servicio de rankings.
+**Backend:**
+1. `NotificationsModule`: FCM (push) + in-app (tabla `notifications`), dedupe por `event_id`,
+   preferencias por categoría, purga de tokens inválidos. Endpoints: `POST /devices`,
+   `GET /me/notifications`, `POST /notifications/:id/read`. Eventos de PRD §14
+   (resultado→confirmación pendiente, disputa, descartado, cambio de rating, etc.).
+   Emitir desde los flujos existentes (al pasar a PENDING_CONFIRMATION, CONFIRMED, DISPUTED…).
+2. `ModerationModule` (PRD §7.10): `GET /admin/disputes`, `POST /admin/disputes/:id/resolve`,
+   `POST /admin/users/:id/role` (todo con `@Roles(administrador)`); registrar en `audit_log`.
+3. `AnalyticsModule`: emitir eventos núcleo a PostHog (server-side) §15.
 
 **App Flutter:**
-1. Pantalla de **Rankings** con filtros (ámbito) — lista paginada.
-2. **Perfil estadístico**: historial V/D y **evolución del rating** (gráfico de
-   `rating_history`). Para gráficos, `ui-ux-pro-max` tiene guía de charts (Flutter: `fl_chart`).
-3. Enlazar desde el Home.
+1. Registro de token FCM (`firebase_messaging`), centro de notificaciones in-app, preferencias.
+2. Vista admin básica (asignar rol, cola de disputas, aprobar/forzar/editar marcador).
 
-**Verificación e2e:** crear varios partidos confirmados entre 2 usuarios dev, refrescar
-`mv_rankings`, y comprobar que `GET /rankings` y la pantalla muestran el orden por rating.
+> Nota: FCM y PostHog necesitan credenciales (Firebase project + PostHog key). Sin ellas,
+> dejar in-app + estructura lista (como se hizo con Supabase en modo dev).
+
+**Sprint 4 (hecho), referencia:** `rankings/` con `/rankings` (scopes + includeProvisional),
+`/players/:id/rating[/history]`, refresco de `mv_rankings` (cron + bootstrap). App: pantalla
+Rankings y tarjeta de evolución (`fl_chart`).
 
 ## 8. Pendientes transversales (no bloquean Sprint 4)
 
