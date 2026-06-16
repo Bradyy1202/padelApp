@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/network/dio_client.dart';
 import '../domain/player.dart';
+import '../domain/match.dart';
 
 /// Cliente del API de negocio (NestJS §11.1).
 class ApiClient {
@@ -44,6 +45,55 @@ class ApiClient {
   Future<Me> claimGuest(String guestId) async {
     final res = await _dio.post<Map<String, dynamic>>('/players/$guestId/claim');
     return Me.fromJson(res.data!);
+  }
+
+  // ── Partidos (§11.2) ──────────────────────────────────────────
+  Future<MatchDetail> createMatch({required String type, int bestOf = 3}) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/matches',
+      data: {'type': type, 'bestOf': bestOf},
+    );
+    return MatchDetail.fromJson(res.data!);
+  }
+
+  Future<MatchDetail> getMatch(String id) async {
+    final res = await _dio.get<Map<String, dynamic>>('/matches/$id');
+    return MatchDetail.fromJson(res.data!);
+  }
+
+  Future<QrInfo> generateQr(String matchId) async {
+    final res = await _dio.post<Map<String, dynamic>>('/matches/$matchId/qr');
+    return QrInfo.fromJson(res.data!);
+  }
+
+  Future<MatchDetail> joinByCode(String shortCode, int side) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/matches/join',
+      data: {'shortCode': shortCode, 'side': side},
+    );
+    return MatchDetail.fromJson(res.data!);
+  }
+
+  Future<MatchDetail> addGuest(String matchId, int side, String guestName) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/matches/$matchId/players',
+      data: {'side': side, 'guestName': guestName},
+    );
+    return MatchDetail.fromJson(res.data!);
+  }
+
+  Future<MatchDetail> registerResult(String matchId, List<Map<String, int>> sets) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/matches/$matchId/result',
+      data: {'sets': sets},
+    );
+    return MatchDetail.fromJson(res.data!);
+  }
+
+  Future<List<MatchDetail>> listMyMatches() async {
+    final res = await _dio.get<Map<String, dynamic>>('/me/matches');
+    final data = (res.data!['data'] as List<dynamic>);
+    return data.map((e) => MatchDetail.fromJson(e as Map<String, dynamic>)).toList();
   }
 }
 

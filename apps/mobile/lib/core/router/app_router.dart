@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../presentation/auth/login_screen.dart';
 import '../../presentation/home/home_screen.dart';
+import '../../presentation/matches/matches_list_screen.dart';
+import '../../presentation/matches/match_detail_screen.dart';
 import '../../presentation/onboarding/onboarding_screen.dart';
 import '../../presentation/profile/profile_screen.dart';
 import '../../state/auth_controller.dart';
@@ -24,6 +26,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', name: 'login', builder: (c, s) => const LoginScreen()),
       GoRoute(path: '/onboarding', name: 'onboarding', builder: (c, s) => const OnboardingScreen()),
       GoRoute(path: '/profile', name: 'profile', builder: (c, s) => const ProfileScreen()),
+      GoRoute(path: '/matches', name: 'matches', builder: (c, s) => const MatchesListScreen()),
+      GoRoute(
+        path: '/matches/:id',
+        name: 'match',
+        builder: (c, s) => MatchDetailScreen(matchId: s.pathParameters['id']!),
+      ),
     ],
     redirect: (context, state) {
       final session = ref.read(authControllerProvider);

@@ -12,6 +12,7 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { UsersModule } from './users/users.module';
+import { MatchesModule } from './matches/matches.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     CommonModule,
     UsersModule,
+    MatchesModule,
     HealthModule,
   ],
 })

@@ -88,6 +88,12 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                icon: const Icon(Icons.sports_tennis),
+                label: const Text('Mis partidos'),
+                onPressed: () => context.push('/matches'),
+              ),
             ],
           );
         },

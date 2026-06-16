@@ -29,6 +29,9 @@ dependencies:
   # Almacenamiento seguro de tokens
   flutter_secure_storage: ^9.2.2
 
+  # QR (renderizado del código del partido)
+  qr_flutter: ^4.1.0
+
   # i18n
   intl: any
 
