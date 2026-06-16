@@ -14,8 +14,8 @@ MVP por sprints (roadmap PRD §19). **Completados 0–3** (núcleo de rating con
 | 2 — Partidos + QR (crear, QR firmado, unirse, marcador validado) | ✅ |
 | 3 — Confirmación + Rating (mayoría/admin/24h, Glicko-2 dobles+MOV, BullMQ, recálculo en merge) | ✅ |
 | 4 — Rankings + perfil estadístico (mv_rankings+scopes, /rankings, rating/history, app rankings + gráfico evolución) | ✅ |
-| 5 — Notificaciones + Moderación | ⬜ **SIGUIENTE** |
-| 6 — Pozos | ⬜ |
+| 5 — Notificaciones + Moderación (in-app + FCM stub, admin disputas/roles + audit_log, PostHog opcional) | ✅ |
+| 6 — Pozos | ⬜ **SIGUIENTE** |
 | 7 — Torneos | ⬜ |
 | 8 — Hardening + Lanzamiento | ⬜ |
 
@@ -79,28 +79,31 @@ cd apps/mobile;  C:\Users\zumba\flutter\bin\flutter.bat test
   (worker BullMQ) → `RatingService.applyMatch` escribe `rating_current` + `rating_history`.
   ⚠️ El `jobId` de BullMQ NO admite `:` (usar `match-<id>`).
 
-## 7. SIGUIENTE: Sprint 5 — Notificaciones + Moderación
+## 7. SIGUIENTE: Sprint 6 — Pozos
 
-**Backend:**
-1. `NotificationsModule`: FCM (push) + in-app (tabla `notifications`), dedupe por `event_id`,
-   preferencias por categoría, purga de tokens inválidos. Endpoints: `POST /devices`,
-   `GET /me/notifications`, `POST /notifications/:id/read`. Eventos de PRD §14
-   (resultado→confirmación pendiente, disputa, descartado, cambio de rating, etc.).
-   Emitir desde los flujos existentes (al pasar a PENDING_CONFIRMATION, CONFIRMED, DISPUTED…).
-2. `ModerationModule` (PRD §7.10): `GET /admin/disputes`, `POST /admin/disputes/:id/resolve`,
-   `POST /admin/users/:id/role` (todo con `@Roles(administrador)`); registrar en `audit_log`.
-3. `AnalyticsModule`: emitir eventos núcleo a PostHog (server-side) §15.
+Tablas ya existen (`pozos`, `pozo_participants`, `pozo_rounds`, `pozo_matches`, `pozo_standings`).
 
-**App Flutter:**
-1. Registro de token FCM (`firebase_messaging`), centro de notificaciones in-app, preferencias.
-2. Vista admin básica (asignar rol, cola de disputas, aprobar/forzar/editar marcador).
+**Backend (nuevo `PozosModule`, endpoints PRD §11.4, todo @Roles(administrador) salvo lecturas):**
+1. `POST /pozos` (crear: nombre, club, modo FIXED_PAIRS|ROTATION, n.º canchas).
+2. `POST /pozos/:id/participants` (añadir reales+invitados).
+3. `POST /pozos/:id/start` → genera Ronda 1 con emparejamiento **balanceado por rating**
+   (servicio puro testeable; manejar impares/byes). Crea `pozo_matches` ligados a `matches`.
+4. `POST /pozos/:id/rounds/:n/results`, `POST /pozos/:id/next-round`.
+5. `GET /pozos/:id/standings` (tabla; también vía Supabase Realtime en la app).
+6. `POST /pozos/:id/close` → materializa cada partido como `match CONFIRMED` (origen POZO) y
+   **encola rating** (`RatingQueue.enqueueMatch`). Clasificación: partidos ganados →
+   desempate por diferencia de games; empates permitidos.
 
-> Nota: FCM y PostHog necesitan credenciales (Firebase project + PostHog key). Sin ellas,
-> dejar in-app + estructura lista (como se hizo con Supabase en modo dev).
+**App Flutter:** crear pozo, añadir participantes, registrar resultados por ronda, **tabla en
+vivo** (Supabase Realtime cuando haya credenciales; mientras, refresco manual/polling).
 
-**Sprint 4 (hecho), referencia:** `rankings/` con `/rankings` (scopes + includeProvisional),
-`/players/:id/rating[/history]`, refresco de `mv_rankings` (cron + bootstrap). App: pantalla
-Rankings y tarjeta de evolución (`fl_chart`).
+**Patrón a reutilizar:** mira `matches/` (estados, validación de marcador `ScoreValidatorService`)
+y `rating/RatingQueue` para el cierre. El emparejamiento balanceado es la lógica nueva crítica
+(escribir tests como en `score-validator.service.spec.ts` / `glicko2.service.spec.ts`).
+
+**Sprint 5 (hecho), referencia:** notificaciones in-app (`NotificationsService.notifyPlayers`),
+moderación admin (`/admin/*`), analytics PostHog opcional. `/me` devuelve `role`.
+Primer admin se siembra con `UPDATE profiles SET role='administrador' WHERE id='<uuid>'`.
 
 ## 8. Pendientes transversales (no bloquean Sprint 4)
 
