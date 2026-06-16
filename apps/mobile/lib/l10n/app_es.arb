@@ -1,0 +1,11 @@
+{
+  "@@locale": "es",
+  "appTitle": "Pádel CR",
+  "@appTitle": { "description": "Nombre de la app" },
+  "homeWelcome": "Bienvenido a Pádel CR",
+  "@homeWelcome": { "description": "Mensaje de bienvenida en la pantalla principal" },
+  "backendStatus": "Estado del backend",
+  "@backendStatus": { "description": "Etiqueta del estado de salud del backend" },
+  "checking": "Comprobando…",
+  "@checking": { "description": "Estado mientras se consulta el backend" }
+}

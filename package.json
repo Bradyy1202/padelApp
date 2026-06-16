@@ -1,0 +1,21 @@
+{
+  "name": "padel-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Monorepo de la app de pádel (estilo DUPR) — backend NestJS + app Flutter + infra Supabase.",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "backend:dev": "pnpm --filter @padel/backend start:dev",
+    "backend:build": "pnpm --filter @padel/backend build",
+    "backend:test": "pnpm --filter @padel/backend test",
+    "backend:lint": "pnpm --filter @padel/backend lint",
+    "prisma:migrate": "pnpm --filter @padel/backend prisma:migrate",
+    "prisma:generate": "pnpm --filter @padel/backend prisma:generate",
+    "infra:up": "docker compose -f infra/docker/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker/docker-compose.yml down"
+  },
+  "packageManager": "pnpm@9.12.0"
+}

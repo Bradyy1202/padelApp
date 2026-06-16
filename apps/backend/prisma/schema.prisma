@@ -1,0 +1,535 @@
+// Esquema Prisma — modelo de dominio de la app de pádel (PRD §10).
+// Nota de arquitectura (PRD §9.2): la tabla de identidad de Supabase (auth.users) la
+// gestiona Supabase y NO se modela aquí. Las columnas que la referencian (user_id, owner_id,
+// claimed_by, notifications.user_id, devices.user_id, audit_log.actor_id) se guardan como
+// uuid escalar (sin FK de Prisma); la integridad con auth.users se asegura vía Supabase.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── Enums ───────────────────────────
+
+enum Role {
+  jugador
+  administrador
+}
+
+enum PlayerStatus {
+  GUEST
+  ACTIVE
+  MERGED
+  DELETED
+}
+
+enum DominantHand {
+  R
+  L
+}
+
+enum FavSide {
+  DRIVE
+  REVES
+  BOTH
+}
+
+enum Gender {
+  M
+  F
+  OTHER
+  NA
+}
+
+enum MatchType {
+  FRIENDLY
+  COMPETITIVE
+  POZO
+  TOURNAMENT
+}
+
+enum MatchStatus {
+  DRAFT
+  READY
+  PENDING_CONFIRMATION
+  CONFIRMED
+  DISPUTED
+  DISCARDED
+}
+
+enum ConfirmDecision {
+  CONFIRM
+  DISPUTE
+}
+
+enum QrStatus {
+  ACTIVE
+  EXPIRED
+  CONSUMED
+}
+
+enum RatingState {
+  PROVISIONAL
+  ESTABLISHED
+}
+
+enum PozoMode {
+  FIXED_PAIRS
+  ROTATION
+}
+
+enum PozoStatus {
+  DRAFT
+  OPEN
+  IN_PROGRESS
+  CLOSED
+  CANCELLED
+}
+
+enum TournamentFormat {
+  SINGLE_ELIM
+  ROUND_ROBIN
+}
+
+enum TournamentStatus {
+  DRAFT
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  IN_PROGRESS
+  FINISHED
+  CANCELLED
+}
+
+enum CategoryGender {
+  M
+  F
+  MIXED
+  OPEN
+}
+
+enum DevicePlatform {
+  ios
+  android
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+}
+
+// ─────────────────────────── Identidad (§10.1) ───────────────────────────
+
+model Profile {
+  id        String   @id @db.Uuid // = auth.users.id
+  role      Role     @default(jugador)
+  playerId  String?  @unique @map("player_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  player Player? @relation(fields: [playerId], references: [id])
+
+  @@map("profiles")
+}
+
+model Player {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String?       @unique @map("user_id") @db.Uuid // NULL => invitado
+  status       PlayerStatus  @default(ACTIVE)
+  mergedInto   String?       @map("merged_into") @db.Uuid
+  fullName     String        @map("full_name")
+  photoUrl     String?       @map("photo_url")
+  city         String?
+  clubId       String?       @map("club_id") @db.Uuid
+  dominantHand DominantHand? @map("dominant_hand")
+  favSide      FavSide?      @map("fav_side")
+  gender       Gender?
+  birthdate    DateTime?     @db.Date
+  estLevel     Decimal?      @map("est_level") @db.Decimal(3, 1)
+  createdBy    String?       @map("created_by") @db.Uuid
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relaciones
+  club              Club?          @relation(fields: [clubId], references: [id])
+  mergedIntoPlayer  Player?        @relation("PlayerMerge", fields: [mergedInto], references: [id])
+  mergedFromPlayers Player[]       @relation("PlayerMerge")
+  createdByPlayer   Player?        @relation("PlayerCreatedBy", fields: [createdBy], references: [id])
+  createdGuests     Player[]       @relation("PlayerCreatedBy")
+  profile           Profile?
+
+  createdMatches    Match[]                  @relation("MatchCreatedBy")
+  matchPlayers      MatchPlayer[]
+  reportedResults   MatchResult[]
+  confirmations     MatchConfirmation[]
+  ratingCurrent     RatingCurrent?
+  ratingHistory     RatingHistory[]
+  pozoParticipations PozoParticipant[]
+  pozoStandings     PozoStanding[]
+  regsAsP1          TournamentRegistration[] @relation("RegP1")
+  regsAsP2          TournamentRegistration[] @relation("RegP2")
+  reportsMade       Report[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([clubId])
+  @@map("players")
+}
+
+model Club {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  city      String?
+  claimedBy String?  @map("claimed_by") @db.Uuid // auth.users.id
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  players Player[]
+  pozos   Pozo[]
+
+  @@map("clubs")
+}
+
+// ─────────────────────────── Partidos (§10.2) ───────────────────────────
+
+model Match {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type            MatchType
+  sourceId        String?     @map("source_id") @db.Uuid // pozo_id o tournament_id según type
+  status          MatchStatus @default(DRAFT)
+  bestOf          Int         @default(3) @map("best_of")
+  createdBy       String      @map("created_by") @db.Uuid
+  playedAt        DateTime?   @map("played_at") @db.Timestamptz(6)
+  confirmDeadline DateTime?   @map("confirm_deadline") @db.Timestamptz(6)
+  ratingApplied   Boolean     @default(false) @map("rating_applied")
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  creator       Player              @relation("MatchCreatedBy", fields: [createdBy], references: [id])
+  teams         MatchTeam[]
+  players       MatchPlayer[]
+  sets          MatchSet[]
+  result        MatchResult?
+  confirmations MatchConfirmation[]
+  qrTokens      QrToken[]
+  ratingHistory RatingHistory[]
+  pozoMatches   PozoMatch[]
+  tournamentMatches TournamentMatch[]
+
+  @@index([status, confirmDeadline])
+  @@index([type, sourceId])
+  @@map("matches")
+}
+
+model MatchTeam {
+  id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matchId String @map("match_id") @db.Uuid
+  side    Int
+
+  match   Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  players MatchPlayer[]
+
+  @@unique([matchId, side])
+  @@map("match_teams")
+}
+
+model MatchPlayer {
+  matchId  String @map("match_id") @db.Uuid
+  teamId   String @map("team_id") @db.Uuid
+  playerId String @map("player_id") @db.Uuid
+
+  match  Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  team   MatchTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player Player    @relation(fields: [playerId], references: [id])
+
+  @@id([matchId, playerId])
+  @@index([playerId])
+  @@map("match_players")
+}
+
+model MatchSet {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matchId   String @map("match_id") @db.Uuid
+  setNo     Int    @map("set_no")
+  games1    Int    @map("games_1")
+  games2    Int    @map("games_2")
+  tiebreak1 Int?   @map("tiebreak_1")
+  tiebreak2 Int?   @map("tiebreak_2")
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, setNo])
+  @@map("match_sets")
+}
+
+model MatchResult {
+  matchId    String   @id @map("match_id") @db.Uuid
+  winnerSide Int      @map("winner_side")
+  gamesDiff  Int      @map("games_diff")
+  reportedBy String   @map("reported_by") @db.Uuid
+  reportedAt DateTime @default(now()) @map("reported_at") @db.Timestamptz(6)
+
+  match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  reporter Player @relation(fields: [reportedBy], references: [id])
+
+  @@map("match_results")
+}
+
+model MatchConfirmation {
+  matchId   String          @map("match_id") @db.Uuid
+  playerId  String          @map("player_id") @db.Uuid
+  decision  ConfirmDecision
+  decidedAt DateTime        @default(now()) @map("decided_at") @db.Timestamptz(6)
+
+  match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@id([matchId, playerId])
+  @@map("match_confirmations")
+}
+
+model QrToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matchId   String   @map("match_id") @db.Uuid
+  shortCode String?  @unique @map("short_code")
+  status    QrStatus @default(ACTIVE)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([status, expiresAt])
+  @@map("qr_tokens")
+}
+
+// ─────────────────────────── Rating (§10.3) ───────────────────────────
+
+model RatingCurrent {
+  playerId      String      @id @map("player_id") @db.Uuid
+  mu            Decimal     @db.Decimal(8, 4)
+  rd            Decimal     @db.Decimal(8, 4)
+  sigma         Decimal     @db.Decimal(8, 4)
+  ratingDisplay Decimal     @map("rating_display") @db.Decimal(3, 1)
+  confidence    Int
+  state         RatingState @default(PROVISIONAL)
+  matchesCount  Int         @default(0) @map("matches_count")
+  lastMatchAt   DateTime?   @map("last_match_at") @db.Timestamptz(6)
+  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([ratingDisplay(sort: Desc)])
+  @@index([state])
+  @@map("rating_current")
+}
+
+model RatingHistory {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  playerId     String   @map("player_id") @db.Uuid
+  matchId      String   @map("match_id") @db.Uuid
+  muBefore     Decimal? @map("mu_before") @db.Decimal(8, 4)
+  muAfter      Decimal? @map("mu_after") @db.Decimal(8, 4)
+  rdBefore     Decimal? @map("rd_before") @db.Decimal(8, 4)
+  rdAfter      Decimal? @map("rd_after") @db.Decimal(8, 4)
+  ratingBefore Decimal? @map("rating_before") @db.Decimal(3, 1)
+  ratingAfter  Decimal? @map("rating_after") @db.Decimal(3, 1)
+  delta        Decimal? @db.Decimal(3, 1)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  match  Match  @relation(fields: [matchId], references: [id])
+
+  @@unique([playerId, matchId]) // idempotencia
+  @@index([playerId, createdAt])
+  @@map("rating_history")
+}
+
+// ─────────────────────────── Pozos (§10.4) ───────────────────────────
+
+model Pozo {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  clubId      String?    @map("club_id") @db.Uuid
+  ownerId     String     @map("owner_id") @db.Uuid // auth.users.id
+  mode        PozoMode
+  courts      Int
+  status      PozoStatus @default(DRAFT)
+  scheduledAt DateTime?  @map("scheduled_at") @db.Timestamptz(6)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  club         Club?             @relation(fields: [clubId], references: [id])
+  participants PozoParticipant[]
+  rounds       PozoRound[]
+  standings    PozoStanding[]
+
+  @@map("pozos")
+}
+
+model PozoParticipant {
+  pozoId   String @map("pozo_id") @db.Uuid
+  playerId String @map("player_id") @db.Uuid
+
+  pozo   Pozo   @relation(fields: [pozoId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@id([pozoId, playerId])
+  @@map("pozo_participants")
+}
+
+model PozoRound {
+  id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pozoId  String @map("pozo_id") @db.Uuid
+  roundNo Int    @map("round_no")
+
+  pozo    Pozo        @relation(fields: [pozoId], references: [id], onDelete: Cascade)
+  matches PozoMatch[]
+
+  @@unique([pozoId, roundNo])
+  @@map("pozo_rounds")
+}
+
+model PozoMatch {
+  id      String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roundId String  @map("round_id") @db.Uuid
+  court   Int?
+  matchId String? @map("match_id") @db.Uuid
+
+  round PozoRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  match Match?    @relation(fields: [matchId], references: [id])
+
+  @@map("pozo_matches")
+}
+
+model PozoStanding {
+  pozoId       String @map("pozo_id") @db.Uuid
+  playerId     String @map("player_id") @db.Uuid
+  wins         Int    @default(0)
+  draws        Int    @default(0)
+  losses       Int    @default(0)
+  gamesFor     Int    @default(0) @map("games_for")
+  gamesAgainst Int    @default(0) @map("games_against")
+
+  pozo   Pozo   @relation(fields: [pozoId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@id([pozoId, playerId])
+  @@map("pozo_standings")
+}
+
+// ─────────────────────────── Torneos (§10.5) ───────────────────────────
+
+model Tournament {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  ownerId   String?          @map("owner_id") @db.Uuid // auth.users.id
+  format    TournamentFormat
+  status    TournamentStatus @default(DRAFT)
+  startDate DateTime?        @map("start_date") @db.Date
+  endDate   DateTime?        @map("end_date") @db.Date
+
+  categories TournamentCategory[]
+
+  @@map("tournaments")
+}
+
+model TournamentCategory {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tournamentId String         @map("tournament_id") @db.Uuid
+  name         String?
+  gender       CategoryGender
+  minRating    Decimal?       @map("min_rating") @db.Decimal(3, 1)
+  maxRating    Decimal?       @map("max_rating") @db.Decimal(3, 1)
+
+  tournament    Tournament               @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  registrations TournamentRegistration[]
+  matches       TournamentMatch[]
+
+  @@map("tournament_categories")
+}
+
+model TournamentRegistration {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId String @map("category_id") @db.Uuid
+  player1Id  String @map("player1_id") @db.Uuid
+  player2Id  String @map("player2_id") @db.Uuid
+  seed       Int?
+
+  category   TournamentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  player1    Player             @relation("RegP1", fields: [player1Id], references: [id])
+  player2    Player             @relation("RegP2", fields: [player2Id], references: [id])
+  matchesAsA TournamentMatch[]  @relation("RegA")
+  matchesAsB TournamentMatch[]  @relation("RegB")
+
+  @@unique([categoryId, player1Id, player2Id])
+  @@map("tournament_registrations")
+}
+
+model TournamentMatch {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId  String  @map("category_id") @db.Uuid
+  round       Int?
+  bracketPos  Int?    @map("bracket_pos")
+  regA        String? @map("reg_a") @db.Uuid
+  regB        String? @map("reg_b") @db.Uuid
+  matchId     String? @map("match_id") @db.Uuid
+  nextMatchId String? @map("next_match_id") @db.Uuid
+
+  category      TournamentCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  registrationA TournamentRegistration? @relation("RegA", fields: [regA], references: [id])
+  registrationB TournamentRegistration? @relation("RegB", fields: [regB], references: [id])
+  match         Match?                  @relation(fields: [matchId], references: [id])
+  nextMatch     TournamentMatch?        @relation("BracketNext", fields: [nextMatchId], references: [id])
+  previousMatches TournamentMatch[]     @relation("BracketNext")
+
+  @@map("tournament_matches")
+}
+
+// ─────────────────────────── Transversales (§10.6) ───────────────────────────
+
+model Notification {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?   @map("user_id") @db.Uuid // auth.users.id
+  type      String?
+  payload   Json?
+  readAt    DateTime? @map("read_at") @db.Timestamptz(6)
+  eventId   String?   @unique @map("event_id")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("notifications")
+}
+
+model Device {
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?        @map("user_id") @db.Uuid // auth.users.id
+  fcmToken  String         @unique @map("fcm_token")
+  platform  DevicePlatform
+  updatedAt DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("devices")
+}
+
+model Report {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporterId String?      @map("reporter_id") @db.Uuid
+  targetType String?      @map("target_type")
+  targetId   String?      @map("target_id") @db.Uuid
+  reason     String?
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  reporter Player? @relation(fields: [reporterId], references: [id])
+
+  @@map("reports")
+}
+
+model AuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId   String?  @map("actor_id") @db.Uuid
+  action    String?
+  entity    String?
+  entityId  String?  @map("entity_id") @db.Uuid
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("audit_log")
+}

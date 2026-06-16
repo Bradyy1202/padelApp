@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (NestJS)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: padel
+          POSTGRES_PASSWORD: padel
+          POSTGRES_DB: padel
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U padel"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://padel:padel@localhost:5432/padel?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Prisma generate
+        run: pnpm --filter @padel/backend exec prisma generate
+      - name: Migrate (deploy)
+        run: pnpm --filter @padel/backend exec prisma migrate deploy
+      - name: Lint
+        run: pnpm --filter @padel/backend lint
+      - name: Build
+        run: pnpm --filter @padel/backend build
+      - name: Test
+        run: pnpm --filter @padel/backend test
+
+  mobile:
+    name: Mobile (Flutter)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Pub get
+        working-directory: apps/mobile
+        run: flutter pub get
+      - name: Generate l10n
+        working-directory: apps/mobile
+        run: flutter gen-l10n
+      - name: Analyze
+        working-directory: apps/mobile
+        run: flutter analyze
+      - name: Test
+        working-directory: apps/mobile
+        run: flutter test
