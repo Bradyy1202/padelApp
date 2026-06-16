@@ -90,6 +90,16 @@ class ApiClient {
     return MatchDetail.fromJson(res.data!);
   }
 
+  Future<MatchDetail> confirmMatch(String matchId) async {
+    final res = await _dio.post<Map<String, dynamic>>('/matches/$matchId/confirm');
+    return MatchDetail.fromJson(res.data!);
+  }
+
+  Future<MatchDetail> disputeMatch(String matchId) async {
+    final res = await _dio.post<Map<String, dynamic>>('/matches/$matchId/dispute');
+    return MatchDetail.fromJson(res.data!);
+  }
+
   Future<List<MatchDetail>> listMyMatches() async {
     final res = await _dio.get<Map<String, dynamic>>('/me/matches');
     final data = (res.data!['data'] as List<dynamic>);

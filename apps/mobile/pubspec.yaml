@@ -32,6 +32,9 @@ dependencies:
   # QR (renderizado del código del partido)
   qr_flutter: ^4.1.0
 
+  # Tipografía (UI/UX Pro Max — pareja Sora/Inter)
+  google_fonts: ^6.2.1
+
   # i18n
   intl: any
 

@@ -9,6 +9,7 @@ import { Player, PlayerStatus, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { RatingQueue } from '../rating/rating.queue';
 import { OnboardingDto } from './dto/onboarding.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { CreateGuestDto } from './dto/create-guest.dto';
@@ -25,6 +26,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseService,
+    private readonly ratingQueue: RatingQueue,
   ) {}
 
   /** Perfil completo del usuario autenticado + rating. Crea el profile si falta. */
@@ -201,8 +203,9 @@ export class UsersService {
       });
     });
 
-    // TODO(sprint3): encolar recálculo de rating del player resultante (myPlayer.id).
-    this.logger.log(`Invitado ${guestId} reclamado por player ${myPlayer.id} (recalcular rating)`);
+    // Recalcular el rating del player resultante tras heredar el historial (§7.5).
+    await this.ratingQueue.enqueueRecompute(myPlayer.id);
+    this.logger.log(`Invitado ${guestId} reclamado por player ${myPlayer.id}; recálculo encolado`);
 
     return this.getMe(userId);
   }

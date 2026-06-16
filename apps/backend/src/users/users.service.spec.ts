@@ -27,12 +27,13 @@ function makePrismaTx() {
 }
 
 const supabaseMock = { isConfigured: false, uploadAvatar: jest.fn(), deleteAuthUser: jest.fn() } as any;
+const ratingQueueMock = { enqueueMatch: jest.fn(), enqueueRecompute: jest.fn() } as any;
 
 describe('UsersService', () => {
   describe('completeOnboarding', () => {
     it('rechaza menores de 12 años', async () => {
       const prisma = makePrisma();
-      const svc = new UsersService(prisma as any, supabaseMock);
+      const svc = new UsersService(prisma as any, supabaseMock, ratingQueueMock);
       const today = new Date().toISOString().slice(0, 10);
       await expect(
         svc.completeOnboarding('u1', { fullName: 'Niño', birthdate: today }),
@@ -42,14 +43,14 @@ describe('UsersService', () => {
 
   describe('uploadPhoto', () => {
     it('rechaza formatos no permitidos', async () => {
-      const svc = new UsersService(makePrisma() as any, supabaseMock);
+      const svc = new UsersService(makePrisma() as any, supabaseMock, ratingQueueMock);
       await expect(
         svc.uploadPhoto('u1', Buffer.from('x'), 'image/gif'),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rechaza fotos de más de 5 MB', async () => {
-      const svc = new UsersService(makePrisma() as any, supabaseMock);
+      const svc = new UsersService(makePrisma() as any, supabaseMock, ratingQueueMock);
       const big = Buffer.alloc(5 * 1024 * 1024 + 1);
       await expect(svc.uploadPhoto('u1', big, 'image/png')).rejects.toBeInstanceOf(
         BadRequestException,
@@ -66,7 +67,7 @@ describe('UsersService', () => {
       const prisma = makePrisma();
       prisma.profile.findUnique.mockResolvedValue(myPlayerProfile);
       prisma.player.findUnique.mockResolvedValue(null);
-      const svc = new UsersService(prisma as any, supabaseMock);
+      const svc = new UsersService(prisma as any, supabaseMock, ratingQueueMock);
       await expect(svc.claimGuest('u1', 'guest1')).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -78,7 +79,7 @@ describe('UsersService', () => {
         status: PlayerStatus.ACTIVE,
         userId: 'otro',
       });
-      const svc = new UsersService(prisma as any, supabaseMock);
+      const svc = new UsersService(prisma as any, supabaseMock, ratingQueueMock);
       await expect(svc.claimGuest('u1', 'guest1')).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -88,7 +89,7 @@ describe('UsersService', () => {
       const prisma = makePrisma();
       prisma.profile.findUnique.mockResolvedValue({ player: { id: 'me' } });
       prisma.player.create.mockResolvedValue({ id: 'g1', status: PlayerStatus.GUEST, fullName: 'Invitado' });
-      const svc = new UsersService(prisma as any, supabaseMock);
+      const svc = new UsersService(prisma as any, supabaseMock, ratingQueueMock);
       await svc.createGuest('u1', { fullName: 'Invitado' });
       expect(prisma.player.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ status: PlayerStatus.GUEST }) }),

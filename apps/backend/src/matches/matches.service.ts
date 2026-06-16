@@ -4,9 +4,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { MatchStatus, MatchType, PlayerStatus, Prisma, QrStatus } from '@prisma/client';
+import {
+  ConfirmDecision,
+  MatchStatus,
+  MatchType,
+  PlayerStatus,
+  Prisma,
+  QrStatus,
+} from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { RatingQueue } from '../rating/rating.queue';
 import { QrService } from './qr.service';
 import { ScoreValidatorService } from './score-validator.service';
 import { CreateMatchDto } from './dto/create-match.dto';
@@ -30,6 +38,7 @@ export class MatchesService {
     private readonly prisma: PrismaService,
     private readonly qr: QrService,
     private readonly scores: ScoreValidatorService,
+    private readonly ratingQueue: RatingQueue,
   ) {}
 
   /** Crea un partido en DRAFT y añade al creador al lado 1 (PRD §6.3). */
@@ -189,6 +198,100 @@ export class MatchesService {
       this.prisma.match.count({ where }),
     ]);
     return { data: rows.map((m) => this.toMatchDto(m)), page, total };
+  }
+
+  /** Confirma el resultado (jugador real del partido). Mayoría → CONFIRMED + rating (§7.4). */
+  async confirm(userId: string, matchId: string) {
+    const match = await this.loadPendingWithRealPlayers(matchId);
+    const myPlayerId = this.requireRealPlayer(match, userId);
+
+    await this.prisma.matchConfirmation.upsert({
+      where: { matchId_playerId: { matchId, playerId: myPlayerId } },
+      create: { matchId, playerId: myPlayerId, decision: ConfirmDecision.CONFIRM },
+      update: { decision: ConfirmDecision.CONFIRM },
+    });
+
+    const realPlayerIds = this.realPlayerIds(match);
+    const confirmations = await this.prisma.matchConfirmation.findMany({
+      where: { matchId, decision: ConfirmDecision.CONFIRM, playerId: { in: realPlayerIds } },
+    });
+
+    const majority = realPlayerIds.length <= 1 ? Infinity : Math.floor(realPlayerIds.length / 2) + 1;
+    if (confirmations.length >= majority) {
+      await this.markConfirmed(matchId);
+    }
+    return this.getMatch(matchId);
+  }
+
+  /** Disputa el resultado → DISPUTED (bloquea hasta resolución admin, §7.4/§7.10). */
+  async dispute(userId: string, matchId: string) {
+    const match = await this.loadPendingWithRealPlayers(matchId);
+    const myPlayerId = this.requireRealPlayer(match, userId);
+    await this.prisma.$transaction([
+      this.prisma.matchConfirmation.upsert({
+        where: { matchId_playerId: { matchId, playerId: myPlayerId } },
+        create: { matchId, playerId: myPlayerId, decision: ConfirmDecision.DISPUTE },
+        update: { decision: ConfirmDecision.DISPUTE },
+      }),
+      this.prisma.match.update({ where: { id: matchId }, data: { status: MatchStatus.DISPUTED } }),
+    ]);
+    return this.getMatch(matchId);
+  }
+
+  /** Aprobación forzada por administrador → CONFIRMED + rating (§7.4 override). */
+  async approve(matchId: string) {
+    const match = await this.prisma.match.findUnique({ where: { id: matchId } });
+    if (!match) throw new NotFoundException('Partido no encontrado');
+    if (
+      match.status !== MatchStatus.PENDING_CONFIRMATION &&
+      match.status !== MatchStatus.DISPUTED
+    ) {
+      throw new BadRequestException('El partido no está pendiente ni disputado');
+    }
+    await this.markConfirmed(matchId);
+    return this.getMatch(matchId);
+  }
+
+  /** Job: descarta partidos pendientes vencidos (>24h sin mayoría ni admin, §7.4). */
+  async discardExpired(): Promise<number> {
+    const res = await this.prisma.match.updateMany({
+      where: { status: MatchStatus.PENDING_CONFIRMATION, confirmDeadline: { lt: new Date() } },
+      data: { status: MatchStatus.DISCARDED },
+    });
+    return res.count;
+  }
+
+  private async markConfirmed(matchId: string) {
+    await this.prisma.match.update({
+      where: { id: matchId },
+      data: { status: MatchStatus.CONFIRMED },
+    });
+    await this.ratingQueue.enqueueMatch(matchId);
+  }
+
+  private async loadPendingWithRealPlayers(matchId: string) {
+    const match = await this.prisma.match.findUnique({
+      where: { id: matchId },
+      include: { players: { include: { player: true } } },
+    });
+    if (!match) throw new NotFoundException('Partido no encontrado');
+    if (match.status !== MatchStatus.PENDING_CONFIRMATION) {
+      throw new BadRequestException('El partido no está en confirmación');
+    }
+    return match;
+  }
+
+  private realPlayerIds(match: { players: Array<{ playerId: string; player: { userId: string | null } }> }) {
+    return match.players.filter((p) => p.player.userId).map((p) => p.playerId);
+  }
+
+  private requireRealPlayer(
+    match: { players: Array<{ playerId: string; player: { userId: string | null } }> },
+    userId: string,
+  ): string {
+    const mp = match.players.find((p) => p.player.userId === userId);
+    if (!mp) throw new ForbiddenException('Solo un jugador real del partido puede confirmar');
+    return mp.playerId;
   }
 
   // ─────────────────────────── helpers ───────────────────────────

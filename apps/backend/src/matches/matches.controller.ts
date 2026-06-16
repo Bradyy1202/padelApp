@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Role } from '@prisma/client';
 
-import { AuthUser, CurrentUser } from '../auth/auth.decorators';
+import { AuthUser, CurrentUser, Roles } from '../auth/auth.decorators';
 import { MatchesService } from './matches.service';
 import { CreateMatchDto } from './dto/create-match.dto';
 import { JoinMatchDto } from './dto/join-match.dto';
@@ -43,6 +44,22 @@ export class MatchesController {
     @Body() dto: RegisterResultDto,
   ) {
     return this.matches.registerResult(user.id, id, dto);
+  }
+
+  @Post(':id/confirm')
+  confirm(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.matches.confirm(user.id, id);
+  }
+
+  @Post(':id/dispute')
+  dispute(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.matches.dispute(user.id, id);
+  }
+
+  @Post(':id/approve')
+  @Roles(Role.administrador)
+  approve(@Param('id') id: string) {
+    return this.matches.approve(id);
   }
 
   @Get(':id')

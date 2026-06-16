@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { BullModule } from '@nestjs/bullmq';
+import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'crypto';
 
@@ -13,6 +15,7 @@ import { AuthModule } from './auth/auth.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { UsersModule } from './users/users.module';
 import { MatchesModule } from './matches/matches.module';
+import { RatingModule } from './rating/rating.module';
 
 @Module({
   imports: [
@@ -38,10 +41,22 @@ import { MatchesModule } from './matches/matches.module';
     }),
     // Rate limiting base (PRD §16). Se afina por endpoint en sprints posteriores.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    // Cola BullMQ sobre Redis (cálculo de rating, PRD §9.4/§12.6).
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        connection: {
+          host: config.get<string>('redis.host'),
+          port: config.get<number>('redis.port'),
+        },
+      }),
+    }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     SupabaseModule,
     AuthModule,
     CommonModule,
+    RatingModule,
     UsersModule,
     MatchesModule,
     HealthModule,
