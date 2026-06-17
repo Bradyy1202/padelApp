@@ -15,8 +15,8 @@ MVP por sprints (roadmap PRD §19). **Completados 0–3** (núcleo de rating con
 | 3 — Confirmación + Rating (mayoría/admin/24h, Glicko-2 dobles+MOV, BullMQ, recálculo en merge) | ✅ |
 | 4 — Rankings + perfil estadístico (mv_rankings+scopes, /rankings, rating/history, app rankings + gráfico evolución) | ✅ |
 | 5 — Notificaciones + Moderación (in-app + FCM stub, admin disputas/roles + audit_log, PostHog opcional) | ✅ |
-| 6 — Pozos | ⬜ **SIGUIENTE** |
-| 7 — Torneos | ⬜ |
+| 6 — Pozos (emparejamiento balanceado fijas/rotación, rondas, standings, cierre→rating; app lista/detalle) | ✅ |
+| 7 — Torneos | ⬜ **SIGUIENTE** |
 | 8 — Hardening + Lanzamiento | ⬜ |
 
 Extra hecho: rediseño UI móvil con la skill **UI/UX Pro Max** (solo `apps/mobile`, ver [CLAUDE.md](CLAUDE.md)).
@@ -79,31 +79,33 @@ cd apps/mobile;  C:\Users\zumba\flutter\bin\flutter.bat test
   (worker BullMQ) → `RatingService.applyMatch` escribe `rating_current` + `rating_history`.
   ⚠️ El `jobId` de BullMQ NO admite `:` (usar `match-<id>`).
 
-## 7. SIGUIENTE: Sprint 6 — Pozos
+## 7. SIGUIENTE: Sprint 7 — Torneos
 
-Tablas ya existen (`pozos`, `pozo_participants`, `pozo_rounds`, `pozo_matches`, `pozo_standings`).
+Tablas ya existen (`tournaments`, `tournament_categories`, `tournament_registrations`,
+`tournament_matches`).
 
-**Backend (nuevo `PozosModule`, endpoints PRD §11.4, todo @Roles(administrador) salvo lecturas):**
-1. `POST /pozos` (crear: nombre, club, modo FIXED_PAIRS|ROTATION, n.º canchas).
-2. `POST /pozos/:id/participants` (añadir reales+invitados).
-3. `POST /pozos/:id/start` → genera Ronda 1 con emparejamiento **balanceado por rating**
-   (servicio puro testeable; manejar impares/byes). Crea `pozo_matches` ligados a `matches`.
-4. `POST /pozos/:id/rounds/:n/results`, `POST /pozos/:id/next-round`.
-5. `GET /pozos/:id/standings` (tabla; también vía Supabase Realtime en la app).
-6. `POST /pozos/:id/close` → materializa cada partido como `match CONFIRMED` (origen POZO) y
-   **encola rating** (`RatingQueue.enqueueMatch`). Clasificación: partidos ganados →
-   desempate por diferencia de games; empates permitidos.
+**Backend (nuevo `TournamentsModule`, endpoints PRD §11.5, mutaciones @Roles(administrador)):**
+1. `POST /tournaments` (crear: nombre, formato SINGLE_ELIM|ROUND_ROBIN, fechas).
+2. `POST /tournaments/:id/categories` (nombre, género M/F/MIXED/OPEN, min/max rating).
+3. `POST /tournaments/:id/register` (inscribir pareja: player1+player2 en una categoría;
+   validar rango de rating/género).
+4. `POST /tournaments/:id/generate` → seed por rating; **bracket** potencia de 2 con byes
+   (eliminación) o **fixture round-robin** por categoría. Servicio puro testeable.
+5. `POST /tournament-matches/:id/result` → registra y **avanza** el bracket (rellena
+   `next_match_id`) o actualiza la tabla round-robin.
+6. `GET /tournaments/:id` (estado + brackets/fixture). Al finalizar: partidos → rating
+   (origen TOURNAMENT) con `RatingQueue.enqueueMatch`.
 
-**App Flutter:** crear pozo, añadir participantes, registrar resultados por ronda, **tabla en
-vivo** (Supabase Realtime cuando haya credenciales; mientras, refresco manual/polling).
+**App Flutter:** crear torneo + categorías, inscripción, ver bracket/fixture, registrar
+resultados (admin).
 
-**Patrón a reutilizar:** mira `matches/` (estados, validación de marcador `ScoreValidatorService`)
-y `rating/RatingQueue` para el cierre. El emparejamiento balanceado es la lógica nueva crítica
-(escribir tests como en `score-validator.service.spec.ts` / `glicko2.service.spec.ts`).
+**Patrón a reutilizar:** calca la estructura de `pozos/` (servicio puro de generación +
+`PozosService` orquestando matches + cierre→rating). El avance de bracket y la generación
+con byes es la lógica nueva crítica (tests como `pozo-pairing.service.spec.ts`).
 
-**Sprint 5 (hecho), referencia:** notificaciones in-app (`NotificationsService.notifyPlayers`),
-moderación admin (`/admin/*`), analytics PostHog opcional. `/me` devuelve `role`.
-Primer admin se siembra con `UPDATE profiles SET role='administrador' WHERE id='<uuid>'`.
+**Sprint 6 (hecho), referencia:** `pozos/` con emparejamiento balanceado (`PozoPairingService`),
+rondas que crean `matches` (type POZO), standings, y `close` que confirma+encola rating.
+Recuerda: matches de pozo/torneo NO pasan por confirmación individual (heredan del organizador).
 
 ## 8. Pendientes transversales (no bloquean Sprint 4)
 
