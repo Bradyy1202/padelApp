@@ -55,6 +55,14 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               _actionTile(
                 context,
+                icon: Icons.grid_view,
+                title: 'Pozos',
+                subtitle: 'Organiza o juega jornadas por rotación',
+                onTap: () => context.push('/pozos'),
+              ),
+              const SizedBox(height: 12),
+              _actionTile(
+                context,
                 icon: Icons.leaderboard,
                 title: 'Rankings',
                 subtitle: 'Compárate por ciudad, club o género',

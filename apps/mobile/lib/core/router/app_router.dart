@@ -11,6 +11,8 @@ import '../../presentation/profile/profile_screen.dart';
 import '../../presentation/rankings/rankings_screen.dart';
 import '../../presentation/notifications/notifications_screen.dart';
 import '../../presentation/admin/admin_disputes_screen.dart';
+import '../../presentation/pozos/pozos_list_screen.dart';
+import '../../presentation/pozos/pozo_detail_screen.dart';
 import '../../state/auth_controller.dart';
 import '../../state/me_controller.dart';
 
@@ -37,6 +39,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (c, s) => const NotificationsScreen(),
       ),
       GoRoute(path: '/admin/disputes', name: 'admin-disputes', builder: (c, s) => const AdminDisputesScreen()),
+      GoRoute(path: '/pozos', name: 'pozos', builder: (c, s) => const PozosListScreen()),
+      GoRoute(
+        path: '/pozos/:id',
+        name: 'pozo',
+        builder: (c, s) => PozoDetailScreen(pozoId: s.pathParameters['id']!),
+      ),
       GoRoute(
         path: '/matches/:id',
         name: 'match',

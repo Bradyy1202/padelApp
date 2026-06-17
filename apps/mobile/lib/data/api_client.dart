@@ -6,6 +6,7 @@ import '../domain/player.dart';
 import '../domain/match.dart';
 import '../domain/ranking.dart';
 import '../domain/notification.dart';
+import '../domain/pozo.dart';
 
 /// Cliente del API de negocio (NestJS §11.1).
 class ApiClient {
@@ -144,6 +145,64 @@ class ApiClient {
 
   Future<void> resolveDispute(String matchId, String resolution) =>
       _dio.post('/admin/disputes/$matchId/resolve', data: {'resolution': resolution});
+
+  // ── Pozos (§11.4) ─────────────────────────────────────────────
+  Future<List<PozoSummary>> listPozos() async {
+    final res = await _dio.get<List<dynamic>>('/pozos');
+    return (res.data ?? []).map((e) => PozoSummary.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<PozoDetail> getPozo(String id) async {
+    final res = await _dio.get<Map<String, dynamic>>('/pozos/$id');
+    return PozoDetail.fromJson(res.data!);
+  }
+
+  Future<PozoDetail> createPozo({required String name, required String mode, int courts = 2}) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/pozos',
+      data: {'name': name, 'mode': mode, 'courts': courts},
+    );
+    return PozoDetail.fromJson(res.data!);
+  }
+
+  Future<PozoDetail> addPozoParticipants(
+    String id, {
+    List<String> guestNames = const [],
+    List<String> playerIds = const [],
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/pozos/$id/participants',
+      data: {'guestNames': guestNames, 'playerIds': playerIds},
+    );
+    return PozoDetail.fromJson(res.data!);
+  }
+
+  Future<PozoDetail> startPozo(String id) async {
+    final res = await _dio.post<Map<String, dynamic>>('/pozos/$id/start');
+    return PozoDetail.fromJson(res.data!);
+  }
+
+  Future<PozoDetail> nextRound(String id) async {
+    final res = await _dio.post<Map<String, dynamic>>('/pozos/$id/next-round');
+    return PozoDetail.fromJson(res.data!);
+  }
+
+  Future<PozoDetail> submitPozoResults(
+    String id,
+    int roundNo,
+    List<Map<String, dynamic>> results,
+  ) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/pozos/$id/rounds/$roundNo/results',
+      data: {'results': results},
+    );
+    return PozoDetail.fromJson(res.data!);
+  }
+
+  Future<PozoDetail> closePozo(String id) async {
+    final res = await _dio.post<Map<String, dynamic>>('/pozos/$id/close');
+    return PozoDetail.fromJson(res.data!);
+  }
 }
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient(ref.watch(dioProvider)));

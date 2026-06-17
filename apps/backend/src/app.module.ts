@@ -20,6 +20,7 @@ import { RankingsModule } from './rankings/rankings.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ModerationModule } from './moderation/moderation.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { PozosModule } from './pozos/pozos.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     UsersModule,
     MatchesModule,
     RankingsModule,
+    PozosModule,
     ModerationModule,
     HealthModule,
   ],
